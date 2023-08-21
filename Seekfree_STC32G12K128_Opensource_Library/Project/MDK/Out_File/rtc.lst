@@ -1,0 +1,151 @@
+C251 COMPILER V5.60.0,  rtc                                                                31/07/23  12:50:10  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE rtc
+OBJECT MODULE PLACED IN .\Out_File\rtc.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE rtc.c XSMALL INTR2 WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INCDIR(..\
+                    -..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USE
+                    -R\src) DEBUG PRINT(.\Out_File\rtc.lst) OBJECT(.\Out_File\rtc.obj) 
+
+stmt  level    source
+
+    1          #include "headfile.h"
+    2          
+    3          
+    4          /**
+    5            *设置时：INIYEAR(INI+xxxx)(参考下方)
+    6            *读取时：YEAR年 MONTH月 DAY日 HOUR时 MIN分 SEC秒 SSEC(1/128秒)
+    7           */
+    8          //RTC实时时钟初始化
+    9          //参数mod:      作用： 0.內部32K   1.外部32K
+   10          void RTC_Init(bit mod)
+   11          {
+   12   1              if(mod)
+   13   1              {
+   14   2                      //选择外部32K
+   15   2                      X32KCR = 0xc0;                          //启动外部32K晶振
+   16   2                      while (!(X32KCR&0x01));         //等待时钟稳定
+   17   2                      RTCCFG &=~0x02;                         //选择外部32K作为RTC时钟源
+   18   2              }
+   19   1              else
+   20   1              {
+   21   2                      //选择內部32K
+   22   2                      IRC32KCR=0x80;                          //启动内部32K晶振
+   23   2                      while(!(IRC32KCR&0x01));        //等待时钟稳定
+   24   2                      RTCCFG|=0x02;                           //选择内部32K作为RTC时钟源
+   25   2              }
+   26   1              RTCIF=0x00;             //清中断标志
+   27   1              RTCCR=0x01;             //RTC使能
+   28   1      }
+   29           
+   30          //RTC实时时钟时间设置
+   31          /*参数
+   32           Year(年):      范围：0~未知（20+值）
+   33           Month(月):     范围：1~12
+   34           Day(日):       范围：1~31
+   35           Hour(小时):    范围：00~23
+   36           Min(分钟):     范围：00~59
+   37           Sec(秒)：      范围：00~59
+   38           Ssec(1/128秒): 范围：00~127
+   39          */
+   40           
+   41           
+   42          void RTC_Set(uint8 Year,uint8 Month,uint8 Day,uint8 Hour,uint8 Min,uint8 Sec,uint8 Ssec)
+   43          {
+   44   1              INIYEAR = Year;
+   45   1              INIMONTH = Month;
+   46   1              INIDAY = Day;
+   47   1              INIHOUR = Hour;
+   48   1              INIMIN = Min;
+   49   1              INISEC = Sec;
+   50   1              INISSEC=Ssec;
+   51   1              RTCCFG|=0x01;           //触发RCT寄存器初始化
+   52   1              while(RTCCFG&0x01);     //等待
+   53   1      }
+   54           
+   55          //RTC实时时钟中断设置
+   56          /*参数
+   57          Ifen:总中断                     范围：0（关闭）/1（开启）
+C251 COMPILER V5.60.0,  rtc                                                                31/07/23  12:50:10  PAGE 2   
+
+   58          Numsen:目标中断         范围：0（关闭）/1（开启）
+   59          mod:目标                                范围：0（1/32秒）1（1/8秒）2（1/2秒）3（1秒）4（1分钟）5（1小时）6（1日（24小时））
+   60          */
+   61          void RTCI_Set(bit Ifen,bit Numsen,uint8 mod)
+   62          {
+   63   1              if(Ifen){RTCIEN|=0x80;}else{RTCIEN&=(~0x80);}
+   64   1              if(Numsen){RTCIEN|=(0x01<<mod);}else{RTCIEN&=~(0x01<<mod);}
+   65   1      }
+   66           
+   67          //RTC实时时钟中断事件
+   68          void RTC_Isr()  interrupt 13
+   69          {
+   70   1              //RTC实时时钟中断
+   71   1              if(RTCIF&0x80)                          //闹钟中断
+   72   1              {
+   73   2                      
+   74   2                      RTCIF&=~0x80;
+   75   2              }
+   76   1              else if(RTCIF&(0x80>>1))        //1日中断
+   77   1              {
+   78   2                      
+   79   2                      RTCIF&=(0x80>>1);
+   80   2              }
+   81   1              else if(RTCIF&(0x80>>2))        //1小时中断
+   82   1              {
+   83   2                      
+   84   2                      RTCIF&=(0x80>>2);
+   85   2              }
+   86   1              else if(RTCIF&(0x80>>3))        //1分钟中断
+   87   1              {
+   88   2                      
+   89   2                      RTCIF&=(0x80>>3);
+   90   2              }
+   91   1              else if(RTCIF&(0x80>>4))        //1秒中断
+   92   1              {
+   93   2              User_Time_Sync_RTC(1);
+   94   2                      RTCIF&=(0x80>>4);
+   95   2              }
+   96   1              else if(RTCIF&(0x80>>5))        //1/2秒中断
+   97   1              {
+   98   2                      
+   99   2                      RTCIF&=(0x80>>5);
+  100   2              }
+  101   1              else if(RTCIF&(0x80>>6))        //1/8秒中断
+  102   1              {
+  103   2                      
+  104   2                      RTCIF&=(0x80>>6);
+  105   2              }
+  106   1              else if(RTCIF&(0x80>>7))        //1/32秒中断
+  107   1              {
+  108   2                      
+  109   2                      RTCIF&=(0x80>>7);
+  110   2              }
+  111   1              
+  112   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       811     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =         8     ------
+C251 COMPILER V5.60.0,  rtc                                                                31/07/23  12:50:10  PAGE 3   
+
+  bit size             =         3     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =    ------     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

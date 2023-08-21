@@ -1,0 +1,137 @@
+C251 COMPILER V5.60.0,  user_time                                                          31/07/23  12:50:11  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE user_time
+OBJECT MODULE PLACED IN .\Out_File\user_time.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE user_time.c XSMALL INTR2 WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INCD
+                    -IR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;
+                    -..\USER\src) DEBUG PRINT(.\Out_File\user_time.lst) OBJECT(.\Out_File\user_time.obj) 
+
+stmt  level    source
+
+    1          #include "headfile.h"
+    2          
+    3          uint8 time_mod = 0;
+    4          int user_hour = 0, user_min = 0, user_sec = 0;
+    5          int target_hour = 0, target_min = 0, target_sec = 10;
+    6          int break_hour = 0, break_min = 0, break_sec = 10;
+    7          int timer_start_flag = 0;
+    8          int timer_finish_flag = 0;
+    9          int break_finish_flag = 0;
+   10          
+   11          int last_sec = 0;
+   12          void User_Time_Sync_RTC(uint8 mod)
+   13          {
+   14   1          if(last_sec != SEC)
+   15   1          {
+   16   2              switch(mod)
+   17   2              {
+   18   3                  case 1:
+   19   3                          user_sec++;
+   20   3                        
+   21   3                          if(user_sec > 59)
+   22   3                          {
+   23   4                              user_sec = 0;
+   24   4                              user_min++;
+   25   4                          }                   
+   26   3                          if(user_min > 59)
+   27   3                          {
+   28   4                              user_min = 0;
+   29   4                              user_hour++;
+   30   4                          }
+   31   3                          if(user_hour > 23)
+   32   3                          {
+   33   4                              user_hour = 0;
+   34   4                          }
+   35   3                                   
+   36   3                          break;
+   37   3                          
+   38   3                  default:
+   39   3                          break;
+   40   3              }        
+   41   2          }
+   42   1      
+   43   1          last_sec = SEC;
+   44   1      }
+   45          
+   46          void User_Time_Back_0()
+   47          {
+   48   1          user_hour = 0; 
+   49   1          user_min = 0;
+   50   1          user_sec = 0;
+   51   1      }
+   52          
+   53          void Timer_Finish()
+   54          {
+   55   1          if(timer_finish_flag == 0 && user_hour == target_hour && user_min == target_min && user_sec == target
+             -_sec)
+   56   1          {
+C251 COMPILER V5.60.0,  user_time                                                          31/07/23  12:50:11  PAGE 2   
+
+   57   2              
+   58   2              timer_finish_flag = 1;
+   59   2              BEEP = 1;
+   60   2              delay_ms(100);
+   61   2              BEEP = 0;
+   62   2              
+   63   2              User_Time_Back_0();
+   64   2          }
+   65   1          
+   66   1          else if(timer_finish_flag == 1 && user_hour == break_hour && user_min == break_min && user_sec == bre
+             -ak_sec)
+   67   1          {
+   68   2              break_finish_flag = 1;
+   69   2              BEEP = 1;
+   70   2              delay_ms(100);
+   71   2              BEEP = 0;
+   72   2          }
+   73   1      }
+   74          
+   75          void Time_Input_Limit(int* parameter, int time_type)
+   76          {
+   77   1          switch(time_type)
+   78   1          {
+   79   2              case 1: //hour
+   80   2                      if(*parameter > 23 || *parameter < 0)
+   81   2                      {
+   82   3                          *parameter = 0;
+   83   3                      }
+   84   2                      break;
+   85   2              case 2: //min
+   86   2                      if(*parameter > 59 || *parameter < 0)
+   87   2                      {
+   88   3                          *parameter = 0;
+   89   3                      }
+   90   2                      break;
+   91   2              case 3: //sec
+   92   2                      if(*parameter > 59 || *parameter < 0)
+   93   2                      {
+   94   3                          *parameter = 0;
+   95   3                      }
+   96   2                      break;
+   97   2          }    
+   98   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       447     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        34     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        83     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

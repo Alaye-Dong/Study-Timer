@@ -1,0 +1,609 @@
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE menu
+OBJECT MODULE PLACED IN .\Out_File\menu.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE menu.c XSMALL INTR2 WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INCDIR(..
+                    -\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\US
+                    -ER\src) DEBUG PRINT(.\Out_File\menu.lst) OBJECT(.\Out_File\menu.obj) 
+
+stmt  level    source
+
+    1          /********************************************************************************************************
+             -*************
+    2           * COPYRIGHT NOTICE
+    3           * Copyright (c) 2023,Alaye_Dong
+    4           * All rights reserved
+    5           *
+    6           * 以下所有内容版权均属Alaye_Dong所有，未经允许不得用于 商业用途，
+    7           * 欢迎各位使用并传播本程序，修改内容时必须保留Alaye_Dong的版权声明。
+    8           *
+    9           * @file                menu
+   10           * @author              Alaye_Dong(QQ2971731849)
+   11           * @Software            MDK FOR C251 V5.60
+   12           * @Target core         STC32G12K128
+   13           * @date                2023-7-28
+   14           * @note            为观察屏幕舒适修改了_SEEKFREE_FONT_h中WHITE的宏定义，实际为黑色
+   15           ********************************************************************************************************
+             -*************/
+   16          
+   17          #include "menu.h"
+   18          
+   19          //定义按键代号
+   20          #define KeystrokeONE 1
+   21          #define KeystrokeTWO 2
+   22          #define KeystrokeTHREE 3
+   23          #define KeystrokeFOUR 4
+   24          
+   25          #define RowsMax 7 //光标在屏幕上可移动至的最大行数
+   26          #define RowsMin 1 //光标在屏幕上可移动至的最小行数
+   27          #define CenterColumn 10*8   //中央列
+   28          #define EEPROM_MODE 1 //eeporm读写开启则为1
+   29          
+   30          int Display_Codename = 0;    //显示页面代号
+   31          uint8 KeystrokeLabel = 0;   //按压状态
+   32          uint8 CursorRow= 0; //光标所在行号
+   33          uint8 MenuNextFlag = 0; //光标所指菜单进入标志位
+   34          float change_unit = 0;  //单次修改的单位值
+   35          
+   36          //需要被修改的参数示例
+   37          
+   38          
+   39          //将有菜单页面的代号填入该数组中，防止由箭头所在行号所决定进入不存在的菜单
+   40          int menu_have_sub[] =  {
+   41                                      0,
+   42                                      1,
+   43                                      2, 21 ,22, 23, 24, 25, 26,
+   44                                      3
+   45                                 };
+   46          
+   47          //菜单箭头标识                       
+   48          void Cursor(void)
+   49          {               
+   50   1          uint8 i;
+   51   1          MenuNextFlag = 0;
+   52   1      
+   53   1          Keystroke_Scan();
+   54   1      
+   55   1          switch(KeystrokeLabel)
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 2   
+
+   56   1          {
+   57   2              case 1:
+   58   2                      CursorRow--;
+   59   2                      break;                   
+   60   2              case 2:
+   61   2                      CursorRow++;
+   62   2                      break;                    
+   63   2              case 3:
+   64   2                      MenuNextFlag = 1;
+   65   2                      break;
+   66   2              case 4:
+   67   2                      MenuNextFlag = -1;
+   68   2                      break;                    
+   69   2          }
+   70   1          //箭头限位
+   71   1          if (CursorRow < RowsMin)
+   72   1          {
+   73   2              CursorRow= RowsMin;
+   74   2          }
+   75   1          else if (CursorRow > RowsMax)
+   76   1          {
+   77   2              CursorRow= RowsMin;
+   78   2          } 
+   79   1          //箭头打印
+   80   1          for (i = 0; i <= 7; i++)
+   81   1          {
+   82   2              if(i == CursorRow)
+   83   2              {
+   84   3                  lcd_showstr(0, CursorRow, ">");
+   85   3              }
+   86   2              else
+   87   2              {
+   88   3                  lcd_showstr(0, i, " ");
+   89   3              }
+   90   2          }
+   91   1      
+   92   1      }
+   93          
+   94          //菜单上下级跳转
+   95          void Menu_Next_Back()
+   96          {
+   97   1          switch(MenuNextFlag)
+   98   1          {
+   99   2              case 0: 
+  100   2                      break;
+  101   2              
+  102   2              case -1:    //返回上一级
+  103   2                      Display_Codename = Display_Codename / 10;
+  104   2                      //CursorRow = 0;
+  105   2                      lcd_clear(WHITE);
+  106   2                      break;
+  107   2              case 1:     //进入下一级
+  108   2                      if(have_sub_menu(Display_Codename*10 + CursorRow))
+  109   2                      {
+  110   3                          Display_Codename = Display_Codename*10 + CursorRow;
+  111   3                          //CursorRow = 0;
+  112   3                          lcd_clear(WHITE);
+  113   3                      }
+  114   2                      break;
+  115   2          }
+  116   1          
+  117   1          MenuNextFlag = 0;   //切换完页面，标志位归0
+  118   1      }
+  119          
+  120          // 检查本行是否存在子菜单
+  121          int have_sub_menu(int menu_id) 
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 3   
+
+  122          {   
+  123   1          int i = 0;
+  124   1          int len = sizeof(menu_have_sub) / sizeof(menu_have_sub [0]);
+  125   1          for (i = 0; i <= len; i++)
+  126   1          {
+  127   2              if (menu_have_sub[i] == menu_id)
+  128   2              {
+  129   3                  return 1;
+  130   3              }
+  131   2          }
+  132   1          return 0;
+  133   1      }
+  134          
+  135          //整型参数修改
+  136          void Keystroke_int(int* parameter, int change_unit_MIN)
+  137          {
+  138   1          change_unit = change_unit_MIN;  //修改单位值 = 最小修改单位值
+  139   1          Keystroke_Scan();
+  140   1          
+  141   1          //通过两个拨码开关来切换修改单位值
+  142   1          if (sw1_status == 0)
+  143   1          {
+  144   2              change_unit = change_unit_MIN * 10; 
+  145   2              if (sw2_status == 0)
+  146   2              {
+  147   3                  change_unit = change_unit_MIN * 100; 
+  148   3              }        
+  149   2          }
+  150   1          
+  151   1          switch(KeystrokeLabel)
+  152   1          {
+  153   2              case 0 :
+  154   2                      break;
+  155   2                          
+  156   2              case KeystrokeONE :
+  157   2                      *parameter += change_unit;      
+  158   2                      break;
+  159   2              case KeystrokeTWO :
+  160   2                      *parameter -= change_unit;                      
+  161   2                      break;
+  162   2                          
+  163   2              case KeystrokeTHREE :
+  164   2                      Display_Codename /= 10; //返回上一页
+  165   2                      lcd_clear(WHITE);
+  166   2                      break;
+  167   2              case KeystrokeFOUR :
+  168   2                      Display_Codename = 0;   //返回第0页
+  169   2                      lcd_clear(WHITE);
+  170   2                      break;
+  171   2          }
+  172   1      
+  173   1      }
+  174          
+  175          //浮点型参数修改
+  176          void Keystroke_float(float* parameter, float change_unit_MIN)
+  177          {
+  178   1          change_unit = change_unit_MIN;  //修改单位值 = 最小修改单位值
+  179   1          Keystroke_Scan();
+  180   1          
+  181   1          //通过两个拨码开关来切换修改的单位值
+  182   1          if (sw1_status == 0)
+  183   1          {
+  184   2              change_unit = change_unit_MIN * 10; 
+  185   2              if (sw2_status == 0)
+  186   2              {
+  187   3                  change_unit = change_unit_MIN * 100; 
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 4   
+
+  188   3              }        
+  189   2          }
+  190   1          
+  191   1          switch(KeystrokeLabel)
+  192   1          {
+  193   2              case 0 :
+  194   2                      break;
+  195   2                          
+  196   2              case KeystrokeONE :
+  197   2                      *parameter += change_unit;      
+  198   2                      break;
+  199   2              case KeystrokeTWO :
+  200   2                      *parameter -= change_unit;                      
+  201   2                      break;
+  202   2                          
+  203   2              case KeystrokeTHREE :
+  204   2                      Display_Codename /= 10; //返回上一页
+  205   2                      lcd_clear(WHITE);
+  206   2                      break;
+  207   2              case KeystrokeFOUR :
+  208   2                      Display_Codename = 0;   //返回第0页
+  209   2                      lcd_clear(WHITE);
+  210   2                      break;
+  211   2          }
+  212   1      
+  213   1      }
+  214          
+  215          
+  216          //整型特值修改，-1或1
+  217          void Keystroke_Special_Value(int* parameter)
+  218          {
+  219   1          Keystroke_Scan();
+  220   1          switch(KeystrokeLabel)
+  221   1          {                
+  222   2              case KeystrokeONE :
+  223   2                      *parameter = -1;        
+  224   2                      break;
+  225   2              case KeystrokeTWO :
+  226   2                      *parameter = 1; 
+  227   2                      break;
+  228   2                      
+  229   2              case KeystrokeTHREE :
+  230   2                      Display_Codename /= 10; //返回上一页
+  231   2                      lcd_clear(WHITE);
+  232   2                      break;
+  233   2              case KeystrokeFOUR :
+  234   2                      Display_Codename = 0;   //返回第0页
+  235   2                      lcd_clear(WHITE);
+  236   2                      break;
+  237   2          }
+  238   1      }
+  239          
+  240          
+  241          
+  242          //-------------------------------------------------------------------------------------------------------
+             -------------
+  243          //  @brief      菜单目录
+  244          //  @param
+  245          //  @return     void
+  246          //  @note       启用while来显示目标页面  在每个页面按键按键后都会改变到对应页面，此函数用于更新屏幕显示  
+             -      
+  247          //             增删页的同时请记得同步修改menu_have_sub[]数组的值
+  248          //-------------------------------------------------------------------------------------------------------
+             -------------
+  249          void Keystroke_Menu(void)
+  250          {
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 5   
+
+  251   1          switch(Display_Codename)
+  252   1          {
+  253   2              case 0:
+  254   2                      Keystroke_Menu_HOME();
+  255   2                      break;
+  256   2                  
+  257   2              case 1:
+  258   2                      Keystroke_Menu_ONE(); 
+  259   2                      break;
+  260   2              case 11:
+  261   2                      Keystroke_Menu_ONE_One();
+  262   2                      break;
+  263   2              case 12:
+  264   2                      Keystroke_Menu_ONE_Two();
+  265   2                      break;
+  266   2                  
+  267   2              case 2:
+  268   2                      Keystroke_Menu_TWO();
+  269   2                      break;
+  270   2              case 21:
+  271   2                      Keystroke_Menu_TWO_One();
+  272   2                      break;
+  273   2              case 22:
+  274   2                      Keystroke_Menu_TWO_Two();
+  275   2                      break;
+  276   2              case 23:
+  277   2                      Keystroke_Menu_TWO_Three();
+  278   2                      break;
+  279   2              case 24:
+  280   2                      Keystroke_Menu_TWO_Four();
+  281   2                      break;
+  282   2              case 25:
+  283   2                      Keystroke_Menu_TWO_Five();
+  284   2                      break;
+  285   2              case 26:
+  286   2                      Keystroke_Menu_TWO_Six();
+  287   2                      break;
+  288   2      
+  289   2              case 3:
+  290   2                      Keystroke_Menu_Three();
+  291   2                      break;
+  292   2                  
+  293   2              default :
+  294   2                  break;
+  295   2          
+  296   2          }
+  297   1      }
+  298          
+  299          //-------------------------------------------------------------------------------------------------------
+             -------------
+  300          //  @brief      主菜单目录
+  301          //  @param
+  302          //  @return     void
+  303          //  @note       此页面为编号为0
+  304          //-------------------------------------------------------------------------------------------------------
+             -------------
+  305          void Keystroke_Menu_HOME(void)    //0
+  306          {
+  307   1          time_mod = 0;   //停止计时
+  308   1          while(MenuNextFlag == 0)
+  309   1          {
+  310   2              lcd_showstr(CenterColumn - 2*8,0,"MENU");
+  311   2              if(timer_start_flag == 0)
+  312   2              {
+  313   3                 lcd_showstr(1*8,1,"Quick Start!");
+  314   3              }
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 6   
+
+  315   2              else
+  316   2              {
+  317   3                  lcd_showstr(1*8,1,"Continue!");
+  318   3              }
+  319   2      
+  320   2              lcd_showstr(1*8,2,"Settings");
+  321   2              lcd_showstr(1*8,3,"Restart");
+  322   2      
+  323   2              Cursor(); 
+  324   2          }
+  325   1          
+  326   1          if(MenuNextFlag == 1 && have_sub_menu(CursorRow))   //进入下一级菜单
+  327   1          {
+  328   2              Display_Codename = CursorRow;
+  329   2              CursorRow = 0;
+  330   2              lcd_clear(WHITE);
+  331   2          }
+  332   1          
+  333   1          else if(MenuNextFlag == -1 && EEPROM_MODE == 1) //在主菜单时按下回退键（按键4）来进行eeprom确认刷写
+  334   1          {
+  335   2              eeprom_flash();
+  336   2              
+  337   2              //刷写完成提示
+  338   2              lcd_clear(WHITE);
+  339   2              lcd_showstr(1*8,1,"EEPROM_SAVED");
+  340   2              lcd_showstr(1*8,4,"@author Alaye_Dong");    //用了就别删.doge！！！
+  341   2      
+  342   2              delay_ms(400);
+  343   2              BEEP = 1;
+  344   2              delay_ms(100);
+  345   2              BEEP = 0;
+  346   2              lcd_clear(WHITE);
+  347   2          }
+  348   1          
+  349   1          MenuNextFlag = 0;   //切换完页面，标志位归0
+  350   1      }
+  351          /*///////////////////////////////////////
+  352              Start
+  353          *////////////////////////////////////////
+  354          void Menu_ONE_Display(uint8 control_line)
+  355          {
+  356   1          lcd_showstr(1*8,0,"Started! ^_^");
+  357   1          lcd_showstr(1*8,1,"Enjoy learning...");
+  358   1          lcd_showstr(1*8,2,"Target is:");
+  359   1          lcd_showint32(1*8,3,target_hour,2);
+  360   1          lcd_showstr(4*8,3,"H");
+  361   1          lcd_showint32(5*8,3,target_min,2);
+  362   1          lcd_showstr(8*8,3,"M");
+  363   1          lcd_showint32(9*8,3,target_sec,2);
+  364   1          lcd_showstr(12*8,3,"S");
+  365   1          
+  366   1          lcd_showstr(1*8,4,"You've learned for:");
+  367   1          lcd_showint32(1*8,5,user_hour,2);
+  368   1          lcd_showstr(4*8,5,"H");
+  369   1          lcd_showint32(5*8,5,user_min,2);
+  370   1          lcd_showstr(8*8,5,"M");
+  371   1          lcd_showint32(9*8,5,user_sec,2);
+  372   1          lcd_showstr(12*8,5,"S");
+  373   1          lcd_showstr(1*8,7,"PressAnyKeyTo Pause"); 
+  374   1      
+  375   1          lcd_showstr(0,control_line,"&"); //&标志提示
+  376   1      
+  377   1      }
+  378          
+  379          void Keystroke_Menu_ONE(void) //1
+  380          {       
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 7   
+
+  381   1          time_mod = 1;   //开启计时
+  382   1          timer_start_flag = 1;
+  383   1      
+  384   1          while(MenuNextFlag == 0)
+  385   1          {
+  386   2              Menu_ONE_Display(-1);
+  387   2              //Cursor();                        
+  388   2              Keystroke_Scan();
+  389   2              if(KeystrokeLabel != 0)
+  390   2              {
+  391   3                  MenuNextFlag = -1;                  
+  392   3              }
+  393   2              
+  394   2              if(timer_finish_flag == 1)
+  395   2              {
+  396   3                  time_mod = 0;
+  397   3                  //User_Time_Back_0();
+  398   3                  Display_Codename = 11;
+  399   3                  lcd_clear(WHITE);
+  400   3                  return;
+  401   3              }
+  402   2          }
+  403   1          Menu_Next_Back();
+  404   1      }
+  405          
+  406          void Keystroke_Menu_ONE_One(void)  //11
+  407          {       
+  408   1          time_mod = 1;   //开启计时    
+  409   1          while(MenuNextFlag == 0)
+  410   1          {
+  411   2              lcd_showstr(1*8,4,"You've rested for:");
+  412   2              lcd_showint32(1*8,5,user_hour,2);
+  413   2              lcd_showstr(4*8,5,"H");
+  414   2              lcd_showint32(5*8,5,user_min,2);
+  415   2              lcd_showstr(8*8,5,"M");
+  416   2              lcd_showint32(9*8,5,user_sec,2);
+  417   2              lcd_showstr(12*8,5,"S");
+  418   2              
+  419   2              if(break_finish_flag == 0)
+  420   2              {
+  421   3                  lcd_showstr(1*8,0,"Good! ^0^");
+  422   3                  lcd_showstr(1*8,1,"You've finished");
+  423   3                  lcd_showstr(1*8,2,"Have a rest for:");
+  424   3                  lcd_showint32(1*8,3,break_hour,2);
+  425   3                  lcd_showstr(4*8,3,"H");
+  426   3                  lcd_showint32(5*8,3,break_min,2);
+  427   3                  lcd_showstr(8*8,3,"M");
+  428   3                  lcd_showint32(9*8,3,break_sec,2);
+  429   3                  lcd_showstr(12*8,3,"S");
+  430   3                  
+  431   3                  lcd_showstr(1*8,7,"PressAnyKeyTo Back"); 
+  432   3                  Keystroke_Scan();
+  433   3                  if(KeystrokeLabel != 0)
+  434   3                  {
+  435   4                      MenuNextFlag = -1;
+  436   4                  }            
+  437   3              }              
+  438   2              //Cursor();
+  439   2              else if(break_finish_flag == 1)
+  440   2              {
+  441   3                  time_mod = 0;   //停止计时
+  442   3                  lcd_showstr(1*8,0,"Hey! >_<");
+  443   3                  lcd_showstr(1*8,1,"Time over");
+  444   3                  lcd_showstr(1*8,7,"BackTo Learn!"); 
+  445   3                  lcd_clear(WHITE); 
+  446   3                  Keystroke_Scan();
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 8   
+
+  447   3                  if(KeystrokeLabel != 0)
+  448   3                  {
+  449   4                      MenuNextFlag = -1;
+  450   4                  }
+  451   3              }
+  452   2          }
+  453   1          Menu_Next_Back();
+  454   1          
+  455   1          User_Time_Back_0();
+  456   1          break_finish_flag = 0;    
+  457   1          timer_start_flag = 0;
+  458   1          timer_finish_flag = 0;
+  459   1          CursorRow = 0;
+  460   1          lcd_clear(WHITE); 
+  461   1      }
+  462          
+  463          void Keystroke_Menu_ONE_Two(void)  //12
+  464          {               
+  465   1      
+  466   1      }
+  467          
+  468          /*////////////////////////////////////
+  469              PD
+  470          *////////////////////////////////////
+  471          void Menu_TWO_Display(uint8 control_line)
+  472          {
+  473   1          lcd_showstr(CenterColumn - 4*8,0,"Settings");
+  474   1          lcd_showstr(1*8,1,"target_hour");
+  475   1          lcd_showstr(1*8,2,"target_min");
+  476   1          lcd_showstr(1*8,3,"target_sec");
+  477   1          lcd_showstr(1*8,4,"break_hour");
+  478   1          lcd_showstr(1*8,5,"break_min");
+  479   1          lcd_showstr(1*8,6,"break_sec");    
+  480   1          lcd_showint32(14*8,1,target_hour,2);
+  481   1          lcd_showint32(14*8,2,target_min,2);
+  482   1          lcd_showint32(14*8,3,target_sec,2);
+  483   1          lcd_showint32(14*8,4,break_hour,2);
+  484   1          lcd_showint32(14*8,5,break_min,2);
+  485   1          lcd_showint32(14*8,6,break_sec,2);
+  486   1          
+  487   1          lcd_showstr(0,control_line,"&"); //&标志提示
+  488   1      }
+  489          
+  490          void Keystroke_Menu_TWO(void) //2
+  491          {       
+  492   1          while(MenuNextFlag == 0)
+  493   1          {
+  494   2              Menu_TWO_Display(-1);
+  495   2              Cursor();
+  496   2          }
+  497   1          eeprom_flash();
+  498   1          Menu_Next_Back();
+  499   1      }
+  500          
+  501          void Keystroke_Menu_TWO_One(void) //21
+  502          {
+  503   1          Menu_TWO_Display(1);
+  504   1          Keystroke_int(&target_hour, 1);
+  505   1          Time_Input_Limit(&target_hour, 1);
+  506   1      }
+  507          void Keystroke_Menu_TWO_Two(void)  //22
+  508          {
+  509   1          Menu_TWO_Display(2);
+  510   1          Keystroke_int(&target_min, 1);
+  511   1          Time_Input_Limit(&target_min, 2);
+  512   1      }
+C251 COMPILER V5.60.0,  menu                                                               31/07/23  12:50:10  PAGE 9   
+
+  513          void Keystroke_Menu_TWO_Three(void)  //23
+  514          {
+  515   1          Menu_TWO_Display(3);
+  516   1          Keystroke_int(&target_sec,1);
+  517   1          Time_Input_Limit(&target_sec, 3);
+  518   1      }
+  519          void Keystroke_Menu_TWO_Four(void)  //24
+  520          {
+  521   1          Menu_TWO_Display(4);
+  522   1          Keystroke_int(&break_hour,1);
+  523   1          Time_Input_Limit(&break_hour, 1);
+  524   1      }
+  525          void Keystroke_Menu_TWO_Five(void)  //25
+  526          {
+  527   1          Menu_TWO_Display(5);
+  528   1          Keystroke_int(&break_min,1);
+  529   1          Time_Input_Limit(&break_min, 2);
+  530   1      }
+  531          void Keystroke_Menu_TWO_Six(void)  //26
+  532          {
+  533   1          Menu_TWO_Display(6);
+  534   1          Keystroke_int(&break_sec,1);
+  535   1          Time_Input_Limit(&break_sec, 3);
+  536   1      }
+  537          
+  538          void Keystroke_Menu_Three()
+  539          {
+  540   1          lcd_showstr(1*8,3,"RESTARTED");
+  541   1          User_Time_Back_0();
+  542   1          timer_start_flag = 0;
+  543   1          timer_finish_flag = 0;
+  544   1          Display_Codename = 0;
+  545   1          CursorRow = 0;
+  546   1          delay_ms(400);
+  547   1          BEEP = 1;
+  548   1          delay_ms(100);
+  549   1          BEEP = 0;
+  550   1          lcd_clear(WHITE);
+  551   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      2757     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        56     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       413     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
